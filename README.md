@@ -13,16 +13,21 @@ fintech fictícia **Data Girls Finance**.
 ---
 
 ## 🏗️ Arquitetura
-┌─────────────┐    ┌──────────────┐    ┌───────────────┐    ┌─────────────┐
-│  Kaggle API │───▶│  Raw Layer   │───▶│  PySpark      │───▶│  S3 (AWS)   │
-│  (extração) │    │  (CSV local) │    │  (limpeza +   │    │  Trusted    │
-└─────────────┘    └──────────────┘    │  Data Quality)│    │  Layer      │
-└───────────────┘    │  (Parquet)  │
-│              └─────────────┘
-▼
-Parquet particionado
-por Credit_Score
-(GOOD / STANDARD / POOR)
+
+\`\`\`mermaid
+flowchart LR
+    A[Kaggle API] -->|extração| B[Raw Layer<br/>CSV local]
+    B -->|PySpark: limpeza<br/>+ Data Quality| C[Trusted Layer<br/>Parquet particionado<br/>por Credit_Score]
+    C -->|boto3 upload| D[(AWS S3<br/>Data Lake)]
+
+    subgraph Airflow[Apache Airflow — orquestração diária]
+        direction LR
+        A
+        B
+        C
+    end
+\`\`\`
+
 Todo o fluxo é orquestrado por uma **DAG do Apache Airflow** rodando em
 containers Docker, com três tasks sequenciais:
 
@@ -47,6 +52,8 @@ containers Docker, com três tasks sequenciais:
 ---
 
 ## 📁 Estrutura do Repositório
+
+\`\`\`
 data-girls-finance-pipeline/
 ├── .github/workflows/ci.yml       # Pipeline de CI (roda os testes a cada push)
 ├── dags/
@@ -66,7 +73,9 @@ data-girls-finance-pipeline/
 ├── requirements.txt
 ├── pytest.ini
 ├── .env.example                     # Template de variáveis de ambiente
+├── LICENSE
 └── README.md
+\`\`\`
 
 ---
 
@@ -78,17 +87,18 @@ data-girls-finance-pipeline/
 - Conta AWS com um bucket S3 e credenciais IAM com permissão de leitura/escrita no bucket
 
 ### 1. Clone o repositório
-```bash
+\`\`\`bash
 git clone https://github.com/bia-beduschi/data-girls-finance-pipeline.git
 cd data-girls-finance-pipeline
-```
+\`\`\`
 
 ### 2. Configure as variáveis de ambiente
 Copie o template e preencha com suas credenciais reais:
-```bash
+\`\`\`bash
 cp .env.example .env
-```
+\`\`\`
 Edite o `.env` com:
+\`\`\`
 KAGGLE_USERNAME=seu_usuario_kaggle
 KAGGLE_KEY=sua_chave_kaggle
 AWS_ACCESS_KEY_ID=sua_chave_aws
@@ -96,14 +106,15 @@ AWS_SECRET_ACCESS_KEY=sua_secret_aws
 AWS_DEFAULT_REGION=us-east-1
 S3_BUCKET_NAME=seu_bucket_s3
 AIRFLOW_UID=50000
+\`\`\`
 
 > ⚠️ O `.env` nunca deve ser commitado — já está protegido pelo `.gitignore`.
 
 ### 3. Suba o ambiente Airflow
-```bash
+\`\`\`bash
 docker compose up airflow-init   # inicializa o banco de metadados e cria o usuário admin
 docker compose up -d             # sobe webserver + scheduler
-```
+\`\`\`
 
 ### 4. Acesse a interface do Airflow
 http://localhost:8080
@@ -115,12 +126,22 @@ o agendamento diário automático.
 
 ---
 
-## ✅ Rodando os Testes
+## 🧪 Rodando os Testes e os Scripts Localmente (fora do Docker)
 
-```bash
+Para testar os scripts individualmente sem subir o Airflow, crie um
+ambiente virtual e instale exatamente as versões travadas no
+`requirements.txt` — isso evita divergências de versão (por exemplo, do
+PySpark) que podem gerar comportamentos inesperados fora do ambiente
+validado:
+
+\`\`\`bash
+python -m venv .venv
+.venv\\Scripts\\activate        # Windows
+# source .venv/bin/activate   # Linux/Mac
+
 pip install -r requirements.txt
 pytest -v
-```
+\`\`\`
 
 A suíte cobre as 3 tasks com **19 testes automatizados**, usando mocks para
 a API do Kaggle e a biblioteca `moto` para simular o S3 — nenhum teste
@@ -128,6 +149,13 @@ depende de credenciais reais ou acesso à internet.
 
 O CI (GitHub Actions) roda essa mesma suíte automaticamente a cada `push`
 ou `pull request` na branch `main`.
+
+> **Nota sobre execução local no Windows fora do Docker**: rodar
+> `scripts/transform/spark_cleaning.py` diretamente no Windows (fora do
+> container) pode exigir configuração adicional do Hadoop (`winutils.exe`),
+> uma limitação conhecida do PySpark nesse sistema operacional. Dentro do
+> ambiente Docker (Linux), usado pela DAG em produção, essa limitação não
+> existe.
 
 ---
 
