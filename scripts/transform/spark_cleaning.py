@@ -8,7 +8,9 @@ persistir o resultado em Parquet particionado (camada Trusted).
 
 import logging
 import os
-
+import sys
+os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+os.environ.setdefault("PYSPARK_DRIVER_PYTHON", sys.executable)
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import (

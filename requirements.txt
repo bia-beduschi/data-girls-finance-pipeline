@@ -2,3 +2,6 @@ pyspark==3.5.1
 boto3
 python-dotenv
 kaggle
+pytest
+pytest-mock
+moto[s3]
